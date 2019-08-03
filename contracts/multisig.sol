@@ -42,6 +42,7 @@ contract multisig{
     event requirementChanged(uint required);
     event transactionSubmit(uint transactionId);
     event Deposit(address sender, uint value);
+    event transactionConfirmed(address confirmer,uint transactionId)
 
     /* 
     ---------------------------
@@ -82,14 +83,14 @@ contract multisig{
     }
 
     //check max length, check if owner does not already exists, check if address is valid
-    function addNewOwner(address _owner) isNotAnOwner(_owner) public{
+    function addNewOwner(address _owner) public notNull(_owner) isNotAnOwner(_owner) {
         isOwner[_owner] = true;
         owners.push(_owner);
         emit addOwner(_owner);
     }
 
     //check if owner exists
-    function removeOwner(address _owner) public{
+    function removeOwner(address _owner) public notNull(_owner) isAnOwner(_owner) {
         isOwner[_owner] = false;
         for(uint i = 0; i<owners.length; i++){
             if(owners[i] == _owner){
@@ -105,7 +106,7 @@ contract multisig{
 
 
     //check if owner exists, check if new owner does not exist
-    function replaceOwner(address _owner, address _newOwner) public{
+    function replaceOwner(address _owner, address _newOwner) public notNull(_owner) notNull(_newOwner) isAnOwner(_owner) isNotAnOwner(_newOwner) {
         for(uint i = 0; i<owners.length; i++){
             if(owners[i] == _owner){
                 owners[i] = _newOwner;
@@ -138,8 +139,37 @@ contract multisig{
         return transactionId;
     }
 
-    // function submitTransaction(address _destination, uint _value, bytes _data) public{
-    // }
+    function submitTransaction(address _destination, uint _value, bytes _data) public returns (uint) {
+        transactionId = addTransaction(destination, value, data);
+        confirmTransaction(transactionId);
+        return transactionId;
+    }
+
+    function confirmTransaction(uint transactionId) public isAnOwner(msg.sender) {
+        confirmations[transactionId][msg.sender] = true;
+        transactionConfirmed(msg.sender, transactionId);
+        executeTransaction(transactionId);
+    }
+
+    function revokeConfirmation(uint transactionId) public isAnOwner(msg.sender)
+    {
+        confirmations[transactionId][msg.sender] = false;
+        //add event for revocation
+        //Revocation(msg.sender, transactionId);
+    }
+
+   function executeTransaction(uint transactionId) public {
+        if (isConfirmed(transactionId)) {
+            Transaction tx = transactions[transactionId];
+            tx.executed = true;
+            if (tx.destination.call.value(tx.value)(tx.data))
+                Execution(transactionId);
+            else {
+                ExecutionFailure(transactionId);
+                tx.executed = false;
+            }
+        }
+    }
 
 
 
