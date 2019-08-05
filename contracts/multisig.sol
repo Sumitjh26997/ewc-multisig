@@ -9,6 +9,7 @@ contract multisig{
         uint value;
         bytes data;
         bool executed;
+        bool rejected;
     }
 
     /* 
@@ -19,6 +20,7 @@ contract multisig{
 
     mapping (uint => Transaction) public transactions;
     mapping (uint => mapping (address => bool)) public confirmations;
+    mapping (uint => mapping (address => bool)) public rejections;
     mapping (address => bool) public isOwner;
 
     /* 
@@ -41,8 +43,11 @@ contract multisig{
     event removedOwner(address oldOwner);
     event requirementChanged(uint required);
     event transactionSubmit(uint transactionId);
-    event Deposit(address sender, uint value);
+    event valueDeposited(address sender, uint value);
     event transactionConfirmed(address confirmer,uint transactionId)
+    event transactionRejected(address confirmer,uint transactionId)
+    event transactionExecuted(uint transactionId);
+    event transactionNotExecuted(uint transactionId);
 
     /* 
     ---------------------------
@@ -65,15 +70,17 @@ contract multisig{
         _;
     }
 
-
-    // fallback function to deposit ethers
-    function () payable public {
-        if(msg.value > 0)
-            emit Deposit(msg.sender,msg.value);
+    modifier notRejected(uint _transactionId){
+        require(transactions[transactionId].rejected == false, "Transaction has been rejected");
     }
 
-    
-    //check max length, check if address is valid
+    /*
+    ---------------------------
+    Functions
+    ---------------------------
+    */
+
+     //check max length, check if address is valid
     constructor(address[] _owners, uint _required) public{
         for(uint i = 0; i<_owners.length; i++)
             isOwner[_owners[i]] = true;
@@ -82,6 +89,14 @@ contract multisig{
         required = _required;
     }
 
+
+    // fallback function to deposit ethers
+    function () payable public {
+        if(msg.value > 0)
+            emit valueDeposited(msg.sender,msg.value);
+    }
+
+    
     //check max length, check if owner does not already exists, check if address is valid
     function addNewOwner(address _owner) public notNull(_owner) isNotAnOwner(_owner) {
         isOwner[_owner] = true;
@@ -126,13 +141,23 @@ contract multisig{
         emit requirementChanged(_required);
     }
 
+
+
+    /*
+    -------------------------------
+    Transaction functions
+    -------------------------------
+    */
+
+
     function addTransaction(address _destination, uint _value, bytes _data) internal returns(uint){
         transactionId = transactionCount;
         transactions[transactionId] = Transaction({
             destination: _destination,
             value: _value,
             data: _data,
-            executed: false
+            executed: false,
+            rejected: false
         });
         transactionCount += 1;
         emit transactionSubmit(transactionId);
@@ -145,32 +170,51 @@ contract multisig{
         return transactionId;
     }
 
-    function confirmTransaction(uint transactionId) public isAnOwner(msg.sender) {
+    function confirmTransaction(uint transactionId) public isAnOwner(msg.sender) notRejected(transactionId){
         confirmations[transactionId][msg.sender] = true;
-        transactionConfirmed(msg.sender, transactionId);
+        rejections[transactionId][msg.sender] = false;
+        emit transactionConfirmed(msg.sender, transactionId);
         executeTransaction(transactionId);
     }
 
-    function revokeConfirmation(uint transactionId) public isAnOwner(msg.sender)
-    {
+    function revokeConfirmation(uint transactionId) public isAnOwner(msg.sender){
         confirmations[transactionId][msg.sender] = false;
-        //add event for revocation
-        //Revocation(msg.sender, transactionId);
+        rejections[transactionId][msg.sender] = true;
+        emit transactionRejected(msg.sender, transactionId);
     }
 
-   function executeTransaction(uint transactionId) public {
+    function isConfirmed(uint transactionId) internal view returns (bool){
+        uint count = 0;
+        for (uint i=0; i<owners.length; i++) {
+            if (confirmations[transactionId][owners[i]])
+                count += 1;
+            if (count == required)
+                return true;
+        }
+    }
+
+    function isRejected(uint transactionId) public {
+        uint count = 0;
+        for (uint i=0; i<owners.length; i++) {
+            if (rejections[transactionId][owners[i]])
+                count += 1;
+            if (count == required)
+                transactions[transactionId].rejected = true;
+        }
+    }
+
+    function executeTransaction(uint transactionId) public {
         if (isConfirmed(transactionId)) {
             Transaction tx = transactions[transactionId];
             tx.executed = true;
             if (tx.destination.call.value(tx.value)(tx.data))
-                Execution(transactionId);
+                emit transactionExecuted(transactionId);
             else {
-                ExecutionFailure(transactionId);
+                emit transactionNotExecuted(transactionId);
                 tx.executed = false;
             }
         }
     }
-
 
 
     /* 
