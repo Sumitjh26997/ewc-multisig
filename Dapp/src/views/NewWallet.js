@@ -24,8 +24,15 @@ export class NewWallet extends React.Component {
         super(props)
         this.state = {
             web3: null,
-            userAddress: null
+            userAddress: null,
+            numberOfUsers: 1,
+            ownerData: [],
+            rows: [{}]
         }
+
+        this.addRow = this.addRow.bind(this);
+        this.removeRow = this.removeRow.bind(this);
+        this.handleChange = this.handleChange.bind(this);
     }
 
     async componentWillMount() {
@@ -36,11 +43,52 @@ export class NewWallet extends React.Component {
             this.setState({
                 web3: results.web3
             })
+            results.web3.eth.getAccounts((error, accounts) => {
+                this.setState({userAddress: accounts[0]})
+            })
+    
         })
         .catch(() => {
             console.log('Error finding web3.')        
         })
     }
+
+
+    handleChange = idx => e => {
+        const name = e.target.name;
+        const value = e.target.value;
+        // console.log("Name: ",name,"  VAlue:",value)
+        const rows = [...this.state.rows];
+        const j = rows[idx]
+        if(name == "walletMember")
+            rows[idx].walletMember = value
+        else if(name == "address")     
+            rows[idx].address = value
+        this.setState({
+          rows
+        });
+    };
+    
+    
+    addRow = () => {
+        const item = {
+          walletMember: "",
+          address: ""
+        };
+        this.setState({
+          rows: [...this.state.rows, item]
+        });
+        console.log("Rows:",this.state.rows)
+    };
+  
+    
+    removeRow = (idx) => () => {
+    const rows = [...this.state.rows]
+    rows.splice(idx, 1)
+    console.log("After deletion: ", rows)
+    this.setState({ rows })
+    }
+
 
     render() {
         return(
@@ -57,6 +105,7 @@ export class NewWallet extends React.Component {
                                     <label>Name</label>
                                     <FormInput
                                     id="walletName"
+                                    required={true}
                                     />
                                 </Col>
                             </Row>
@@ -66,7 +115,9 @@ export class NewWallet extends React.Component {
                                     <FormInput
                                     id="requiredConfirmations"
                                     type="number"
-                                    value="1"    
+                                    min="1"
+                                    defaultValue="1"
+                                    required={true}    
                                     />
                                 </Col>
                             </Row>
@@ -76,8 +127,10 @@ export class NewWallet extends React.Component {
                                     <FormInput
                                     id="dailyLimit"
                                     type="number"
-                                    value="0"    
-                                    />
+                                    defaultValue="0"
+                                    min="0"
+                                    required={true}    
+                                />
                                 </Col>
                             </Row>
                             <Row>
@@ -94,7 +147,7 @@ export class NewWallet extends React.Component {
                                                 Name
                                             </th>
                                             <th scope="col" className="border-0">
-                                                Address
+                                                Address(42 characters)
                                             </th>
                                             <th scope="col" className="border-0">
                                                 Action
@@ -102,19 +155,42 @@ export class NewWallet extends React.Component {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <tr>
+                                            {this.state.rows.map((item, idx) => (
+                                                <tr id="addr" key={idx}>
+                                                    <td>
+                                                        <FormInput
+                                                            name = "walletMember"
+                                                            required={true}
+                                                            value={this.state.rows[idx].walletMember || ''}
+                                                            onChange={this.handleChange(idx)}
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <FormInput
+                                                            name = "address"
+                                                            value={this.state.rows[idx].address || ''}
+                                                            required={true}
+                                                            pattern=".{42,42}"
+                                                            onChange={this.handleChange(idx)}
+                                                        />
+                                                    </td>
+                                                    <td>
+                                                        <Button 
+                                                            theme="danger"
+                                                        onClick={this.removeRow(idx)}>
+                                                                Remove
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        <tr>
                                             <td>
-                                                <FormInput
-                                                id="ownerName"
-                                                />
+                                            <Button onClick={this.addRow}>
+                                                                Add ( + )
+                                                    </Button>
+
                                             </td>
-                                            <td>
-                                            <FormInput
-                                                id="ownerAddress"
-                                                />
-                                            </td>
-                                            <td><Button>Add</Button></td>
-                                            </tr>
+                                        </tr>
                                         </tbody>
                                         </table>
                                     </CardBody>
