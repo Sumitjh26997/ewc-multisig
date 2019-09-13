@@ -4,6 +4,8 @@ import { Container, Row, Col } from "shards-react";
 
 import PageTitle from "./../components/common/PageTitle";
 import SmallStats from "./../components/common/SmallStats";
+import UserDetails from "../components/user-profile-lite/UserDetails";
+
 import getWeb3 from "../Dependencies/getWeb3";
 
 
@@ -32,7 +34,11 @@ const BlogOverview = ({ smallStats }) => (
         </Col>
       ))}
     </Row>
-
+    <Row>
+      <Col lg="4">
+        <UserDetails />
+      </Col>
+    </Row>
 
   </Container>
 );
